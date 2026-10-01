@@ -1,0 +1,25 @@
+# Grandin Tailnet-only front door for Multica (audit condition A3).
+# Binds ONLY to the Tailscale address; Compose stays on 127.0.0.1:3000/8080.
+# Run: TAILNET_IP=100.x.y.z MULTICA_PORT=8780 caddy run --config deploy/grandin/Caddyfile
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+http://:{$MULTICA_PORT} {
+	bind {$TAILNET_IP}
+
+	# WebSocket routes go straight to the backend (Next.js rewrites cannot carry
+	# the Upgrade handshake). Listed explicitly: /ws, /ws/*, /api/daemon/ws.
+	@multica_ws path /ws /ws/* /api/daemon/ws /api/daemon/ws/*
+	handle @multica_ws {
+		reverse_proxy 127.0.0.1:8080 {
+			flush_interval -1
+		}
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:3000
+	}
+}
