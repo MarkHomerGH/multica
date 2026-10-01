@@ -1,0 +1,5 @@
+#!/bin/bash
+# Grandin wrapper: docker compose with the three-layer file stack, from the fork root.
+cd "$(dirname "$0")/../.." && exec docker compose \
+  -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml \
+  -f deploy/grandin/docker-compose.grandin.yml "$@"
