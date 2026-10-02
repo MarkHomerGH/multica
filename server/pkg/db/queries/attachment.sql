@@ -297,6 +297,20 @@ WHERE workspace_id = sqlc.arg(workspace_id)
   AND source_context_id IS NOT NULL
 ORDER BY id;
 
+-- name: ListAttachmentURLsByWorkspace :many
+SELECT url FROM attachment
+WHERE workspace_id = $1 AND source_context_id IS NULL;
+
+-- name: ListWorkspaceAvatarURLs :many
+SELECT COALESCE(w.avatar_url, '')::text AS avatar_url FROM workspace w
+WHERE w.id = $1 AND w.avatar_url IS NOT NULL AND w.avatar_url <> ''
+UNION ALL
+SELECT COALESCE(a.avatar_url, '')::text AS avatar_url FROM agent a
+WHERE a.workspace_id = $1 AND a.avatar_url IS NOT NULL AND a.avatar_url <> ''
+UNION ALL
+SELECT COALESCE(s.avatar_url, '')::text AS avatar_url FROM squad s
+WHERE s.workspace_id = $1 AND s.avatar_url IS NOT NULL AND s.avatar_url <> '';
+
 -- name: DeleteSourceContextAttachmentsByWorkspace :exec
 DELETE FROM attachment
 WHERE workspace_id = sqlc.arg(workspace_id)

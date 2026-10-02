@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"log/slog"
 	"net/http"
+	"path"
 	"regexp"
 	"strings"
 	"time"
@@ -1121,6 +1122,8 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	qtx := h.Queries.WithTx(tx)
 	var sourceContextAttachmentURLs []string
 	var sourceContextIntentURLs []string
+	var attachmentURLs []string
+	var avatarURLs []string
 
 	// SET LOCAL is transaction-scoped, so pgxpool hands this connection back
 	// out with the default (unbounded) lock_timeout after COMMIT / ROLLBACK.
@@ -1156,6 +1159,14 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	}
 	if sourceContextIntentURLs, err = qtx.ListSourceContextObjectIntentURLsByWorkspace(r.Context(), requester.WorkspaceID); err != nil {
 		failWorkspaceDelete(w, r, workspaceID, "list source context pending objects", err)
+		return
+	}
+	if attachmentURLs, err = qtx.ListAttachmentURLsByWorkspace(r.Context(), requester.WorkspaceID); err != nil {
+		failWorkspaceDelete(w, r, workspaceID, "list attachment objects", err)
+		return
+	}
+	if avatarURLs, err = qtx.ListWorkspaceAvatarURLs(r.Context(), requester.WorkspaceID); err != nil {
+		failWorkspaceDelete(w, r, workspaceID, "list workspace avatar objects", err)
 		return
 	}
 
@@ -1347,7 +1358,8 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	for _, runtimeID := range runtimeIDs {
 		h.NotifyRuntimeGone(uuidToString(runtimeID))
 	}
-	h.deleteS3Objects(r.Context(), append(sourceContextAttachmentURLs, sourceContextIntentURLs...))
+	h.deleteWorkspaceUploadObjects(r.Context(), uuidToString(requester.WorkspaceID),
+		append(sourceContextAttachmentURLs, sourceContextIntentURLs...), attachmentURLs, avatarURLs)
 
 	slog.Info("workspace deleted", append(logger.RequestAttrs(r), "workspace_id", workspaceID)...)
 	h.publish(protocol.EventWorkspaceDeleted, workspaceID, "member", requestUserID(r), map[string]any{
@@ -1356,4 +1368,37 @@ func (h *Handler) DeleteWorkspace(w http.ResponseWriter, r *http.Request) {
 	h.notifyDaemonWorkspacesChanged(affectedUserIDs...)
 
 	w.WriteHeader(http.StatusNoContent)
+}
+
+func (h *Handler) deleteWorkspaceUploadObjects(ctx context.Context, workspaceID string, sourceContextURLs, attachmentURLs, avatarURLs []string) {
+	if h.Storage == nil {
+		return
+	}
+	prefix := "workspaces/" + workspaceID + "/"
+	var keys []string
+	seen := make(map[string]bool)
+	add := func(key string) {
+		// Reject paths that could escape this prefix in local storage.
+		if !strings.HasPrefix(key, prefix) || path.Clean(key) != key || seen[key] {
+			return
+		}
+		seen[key] = true
+		keys = append(keys, key)
+	}
+	for _, raw := range sourceContextURLs {
+		add(h.Storage.KeyFromURL(raw))
+	}
+	for _, raw := range attachmentURLs {
+		add(h.Storage.KeyFromURL(raw))
+	}
+	for _, raw := range avatarURLs {
+		if key, ok := avatarKeyFromServedURL(raw); ok {
+			add(key)
+		} else if strings.Contains(raw, "/uploads/") {
+			add(h.Storage.KeyFromURL(raw))
+		}
+	}
+	if len(keys) > 0 {
+		h.Storage.DeleteKeys(ctx, keys)
+	}
 }
