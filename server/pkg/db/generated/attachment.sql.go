@@ -660,6 +660,31 @@ func (q *Queries) ListAttachmentURLsByIssueOrComments(ctx context.Context, issue
 	return items, nil
 }
 
+const listAttachmentURLsByWorkspace = `-- name: ListAttachmentURLsByWorkspace :many
+SELECT url FROM attachment
+WHERE workspace_id = $1 AND source_context_id IS NULL
+`
+
+func (q *Queries) ListAttachmentURLsByWorkspace(ctx context.Context, workspaceID pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listAttachmentURLsByWorkspace, workspaceID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var url string
+		if err := rows.Scan(&url); err != nil {
+			return nil, err
+		}
+		items = append(items, url)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const listAttachmentsByChatMessage = `-- name: ListAttachmentsByChatMessage :many
 SELECT id, workspace_id, issue_id, comment_id, uploader_type, uploader_id, filename, url, content_type, size_bytes, created_at, chat_session_id, chat_message_id, task_id, source_context_id FROM attachment
 WHERE chat_message_id = $1 AND workspace_id = $2
@@ -1116,6 +1141,37 @@ func (q *Queries) ListSourceContextIssueAttachments(ctx context.Context, arg Lis
 			return nil, err
 		}
 		items = append(items, i)
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const listWorkspaceAvatarURLs = `-- name: ListWorkspaceAvatarURLs :many
+SELECT COALESCE(w.avatar_url, '')::text AS avatar_url FROM workspace w
+WHERE w.id = $1 AND w.avatar_url IS NOT NULL AND w.avatar_url <> ''
+UNION ALL
+SELECT COALESCE(a.avatar_url, '')::text AS avatar_url FROM agent a
+WHERE a.workspace_id = $1 AND a.avatar_url IS NOT NULL AND a.avatar_url <> ''
+UNION ALL
+SELECT COALESCE(s.avatar_url, '')::text AS avatar_url FROM squad s
+WHERE s.workspace_id = $1 AND s.avatar_url IS NOT NULL AND s.avatar_url <> ''
+`
+
+func (q *Queries) ListWorkspaceAvatarURLs(ctx context.Context, id pgtype.UUID) ([]string, error) {
+	rows, err := q.db.Query(ctx, listWorkspaceAvatarURLs, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	items := []string{}
+	for rows.Next() {
+		var avatar_url string
+		if err := rows.Scan(&avatar_url); err != nil {
+			return nil, err
+		}
+		items = append(items, avatar_url)
 	}
 	if err := rows.Err(); err != nil {
 		return nil, err
