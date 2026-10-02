@@ -284,6 +284,14 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 		http.NotFound(w, r)
 		return
 	}
+	if filename == "" || strings.HasSuffix(filename, "/") {
+		http.NotFound(w, r)
+		return
+	}
+	if info, err := os.Stat(filePath); err == nil && info.IsDir() {
+		http.NotFound(w, r)
+		return
+	}
 	slog.Info("serving file", "filename", filename, "filepath", filePath)
 
 	// Mirror the S3 Upload path: when sidecar metadata exists for this key,
