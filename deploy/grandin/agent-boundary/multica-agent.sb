@@ -17,6 +17,7 @@
 
 ;; Hazmat sbpl.go:75-77: V8/Bun startup queries.
 (allow sysctl-read)
+(allow system-info)
 
 ;; Hazmat sbpl.go:196-261: terminal, Mach and IPC needed by Go/Bun.
 (allow pseudo-tty)
@@ -65,7 +66,9 @@
 (allow file-read* (literal "/dev/zero"))
 (allow file-write* (literal "/dev/null"))
 (allow file-read-metadata (literal "/Users"))
-(allow file-read-metadata (literal (param "HOME")))
+;; OpenCode reads its cwd when the daemon probes its version from HOME.
+;; This literal permits the HOME entry/listing, not descendant contents.
+(allow file-read* (literal (param "HOME")))
 (allow file-read-metadata (literal "/private/tmp"))
 (allow file-read-metadata (literal "/private/var/folders"))
 
