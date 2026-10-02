@@ -1460,14 +1460,15 @@ func NewRouterWithOptions(pool *pgxpool.Pool, hub *realtime.Hub, bus *events.Bus
 		realtime.HandleWebSocket(hub, mc, pr, slugResolver, w, r)
 	})
 
-	// Local file serving (when using local storage). Served through the
-	// handler so /uploads/* carries the same preview security headers as the
-	// /api/attachments download endpoint; self-hosted split-origin/same-origin
-	// clients can then iframe-preview PDFs/HTML fetched straight from the
-	// static route instead of hitting the global frame-ancestors 'none' CSP.
+	// Authenticated local file serving (when using local storage). The handler
+	// checks workspace membership and carries the same preview security headers
+	// as the /api/attachments download endpoint.
 	// See MUL-3821 / #4477.
 	if _, ok := store.(*storage.LocalStorage); ok {
-		r.Get("/uploads/*", h.ServeLocalUpload)
+		r.Group(func(r chi.Router) {
+			r.Use(middleware.Auth(queries, patCache, cloudPATVerifier, cfSigner))
+			r.Get("/uploads/*", h.ServeLocalUpload)
+		})
 	}
 
 	// Capability-authenticated attachment download (MUL-5292). Public by

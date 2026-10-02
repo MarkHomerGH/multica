@@ -7,8 +7,37 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
+
+func TestLocalServeFile_RefusesDirectory(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LOCAL_UPLOAD_DIR", dir)
+	store := NewLocalStorageFromEnv()
+	if store == nil {
+		t.Fatal("NewLocalStorageFromEnv returned nil")
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "workspaces", "ws"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "workspaces", "ws", "private.txt"), []byte("private"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	for _, key := range []string{"workspaces/ws", "workspaces/ws/"} {
+		t.Run(key, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil)
+			rec := httptest.NewRecorder()
+			store.ServeFile(rec, req, key)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want 404; body=%q", rec.Code, rec.Body.String())
+			}
+			if strings.Contains(rec.Body.String(), "private.txt") {
+				t.Fatalf("directory listing leaked: %q", rec.Body.String())
+			}
+		})
+	}
+}
 
 func TestLocalStorage_Upload(t *testing.T) {
 	tmpDir := t.TempDir()

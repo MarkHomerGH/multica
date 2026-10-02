@@ -1914,13 +1914,16 @@ func TestIsDurablePublicURL(t *testing.T) {
 
 // TestServeLocalUpload_RelaxesFrameAncestorsForPreview covers the self-hosted
 // local-disk case where document previews (PDF/HTML) are fetched straight from
-// the public /uploads/* static route. That route inherits the global
+// the authenticated /uploads/* route. That route inherits the global
 // "frame-ancestors 'none'" CSP from the middleware, which blocks iframe
 // previews; ServeLocalUpload must overwrite it with the same relaxed preview
 // policy the /api/attachments download endpoint uses. See MUL-3821 / #4477.
 func TestServeLocalUpload_RelaxesFrameAncestorsForPreview(t *testing.T) {
+	if testHandler == nil {
+		t.Skip("test database not available")
+	}
 	dir := t.TempDir()
-	key := "workspaces/ws-1/preview.pdf"
+	key := "workspaces/" + testWorkspaceID + "/preview.pdf"
 	full := filepath.Join(dir, filepath.FromSlash(key))
 	if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 		t.Fatalf("mkdir: %v", err)
@@ -1939,10 +1942,12 @@ func TestServeLocalUpload_RelaxesFrameAncestorsForPreview(t *testing.T) {
 
 	h := &Handler{
 		Storage: local,
+		Queries: testHandler.Queries,
 		cfg:     Config{AttachmentFrameAncestors: []string{"https://app.example.test"}},
 	}
 
 	req := httptest.NewRequest(http.MethodGet, "/uploads/"+key, nil)
+	req.Header.Set("X-User-ID", testUserID)
 	w := httptest.NewRecorder()
 	// Simulate the global CSP middleware having already stamped the strict
 	// policy on the response before the static route runs.

@@ -952,12 +952,9 @@ func shouldProxyAttachmentURL(rawURL string) bool {
 	return false
 }
 
-// ServeLocalUpload serves a local-disk object from the public /uploads/*
-// route. It carries the same preview security headers as the authenticated
-// download endpoint so self-hosted deployments — same-origin or split
-// frontend/backend origins — can inline-render images and iframe-preview
-// documents (PDF/HTML) fetched straight from the static route. Without these
-// headers the global "frame-ancestors 'none'" policy blocks those previews.
+// ServeLocalUpload serves a local-disk object from the authenticated /uploads/*
+// route. It carries the same preview security headers as the download endpoint
+// so document previews are not blocked by the global frame-ancestors policy.
 // See MUL-3821 / #4477.
 func (h *Handler) ServeLocalUpload(w http.ResponseWriter, r *http.Request) {
 	local, ok := h.Storage.(*storage.LocalStorage)
@@ -965,9 +962,52 @@ func (h *Handler) ServeLocalUpload(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	h.setAttachmentPreviewSecurityHeaders(w)
+	userID, ok := requireUserID(w, r)
+	if !ok {
+		return
+	}
 	key := strings.TrimPrefix(r.URL.Path, "/uploads/")
+	if key == "" || strings.HasSuffix(key, "/") {
+		http.NotFound(w, r)
+		return
+	}
+	switch {
+	case strings.HasPrefix(key, "workspaces/"):
+		rest := strings.TrimPrefix(key, "workspaces/")
+		slash := strings.Index(rest, "/")
+		if slash <= 0 || slash == len(rest)-1 || !h.canReadWorkspaceUpload(r, userID, rest[:slash]) {
+			http.NotFound(w, r)
+			return
+		}
+	case strings.HasPrefix(key, "users/"):
+		rest := strings.TrimPrefix(key, "users/")
+		slash := strings.Index(rest, "/")
+		if slash <= 0 || slash == len(rest)-1 {
+			http.NotFound(w, r)
+			return
+		}
+	default:
+		http.NotFound(w, r)
+		return
+	}
+	h.setAttachmentPreviewSecurityHeaders(w)
 	local.ServeFile(w, r, key)
+}
+
+// canReadWorkspaceUpload uses the same cache-backed membership check as
+// attachment downloads. Denied and missing workspaces both return false.
+func (h *Handler) canReadWorkspaceUpload(r *http.Request, userID, workspaceID string) bool {
+	if userID == "" || workspaceID == "" {
+		return false
+	}
+	if h.MembershipCache.Get(r.Context(), userID, workspaceID) {
+		return true
+	}
+	if _, err := h.getWorkspaceMember(r.Context(), userID, workspaceID); err != nil {
+		return false
+	}
+	h.MembershipCache.Set(r.Context(), userID, workspaceID)
+	return true
 }
 
 // proxyAttachmentDownload streams an attachment through the API instead of
