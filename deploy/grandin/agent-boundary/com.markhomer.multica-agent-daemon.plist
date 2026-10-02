@@ -4,7 +4,7 @@
   <key>Label</key><string>com.markhomer.multica-agent-daemon</string>
   <key>UserName</key><string>multica-agent</string>
   <key>GroupName</key><string>multica-agent</string>
-  <key>WorkingDirectory</key><string>/Users/multica-agent/multica_workspaces</string>
+  <key>WorkingDirectory</key><string>/Users/multica-agent</string>
   <key>ProgramArguments</key><array>
     <string>/usr/bin/sandbox-exec</string>
     <string>-f</string><string>/usr/local/multica-agent/multica-agent.sb</string>

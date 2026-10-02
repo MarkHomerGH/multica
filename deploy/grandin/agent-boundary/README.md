@@ -148,3 +148,11 @@ check must execute its success and denial probes outside this worker sandbox.
 No privileged install, pf, launchctl, or account-changing command was run.
 The live-sitting results above came from the Studio run before these fixes;
 this worktree cannot establish that the revised daemon registers a runtime.
+
+### Live sitting 2 (2026-10-02): working directory back to HOME
+
+Starting the daemon in `multica_workspaces` made it refuse with `daemon start is not available inside a
+daemon-managed task`: Multica walks up from the working directory looking for
+`.multica/daemon_task_context.json` (`server/cmd/multica/cmd_agent.go` `daemonTaskContextMarkerPath`), and a
+task marker lives under the workspaces root. The daemon starts in HOME again; the profile's
+`(allow file-read* (literal (param "HOME")))` is what lets OpenCode's runtime check run from there.
