@@ -1,0 +1,2 @@
+pass out quick proto tcp from any to 127.0.0.1 port { 8080, 11434 } user multica-agent
+block return out quick proto { tcp, udp } user multica-agent
