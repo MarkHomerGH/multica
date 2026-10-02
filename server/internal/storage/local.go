@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 )
@@ -264,6 +265,10 @@ func (s *LocalStorage) GetFilePath(key string) string {
 }
 
 func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filename string) {
+	if filename == "" || strings.HasSuffix(filename, "/") || path.Clean(filename) != filename {
+		http.NotFound(w, r)
+		return
+	}
 	// The sidecar and the staging file are implementation details of the local
 	// backend; refuse to serve them directly so /uploads/<key>.meta.json (or a
 	// half-written .<key>.tmp) doesn't become a stable read API. Comes before
@@ -281,10 +286,6 @@ func (s *LocalStorage) ServeFile(w http.ResponseWriter, r *http.Request, filenam
 	// without this guard a crafted path could trigger a stray disk read on
 	// an arbitrary <some-path>.meta.json before the 400 lands.
 	if !isUnder(s.uploadDir, filePath) {
-		http.NotFound(w, r)
-		return
-	}
-	if filename == "" || strings.HasSuffix(filename, "/") {
 		http.NotFound(w, r)
 		return
 	}

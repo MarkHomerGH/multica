@@ -71,6 +71,43 @@ func TestLocalUpload_NonMember404(t *testing.T) {
 	}
 }
 
+func TestLocalUpload_DotDotCrossWorkspace404(t *testing.T) {
+	local := localUploadTestStorage(t)
+	foreignUser := dbfx.User(t, "Upload fixture user", "upload-user-"+uuid.NewString()+"@example.test")
+	foreignWorkspace := dbfx.Workspace(t, "Upload fixture workspace", "upload-ws-"+uuid.NewString())
+	dbfx.Member(t, foreignWorkspace, foreignUser, "owner")
+	key := "workspaces/" + foreignWorkspace + "/private.pdf"
+	const body = "foreign workspace file bytes"
+	if _, err := local.Upload(context.Background(), key, []byte(body), "application/pdf", "secret-LOI.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	paths := map[string]string{
+		"plain":   "/uploads/workspaces/" + testWorkspaceID + "/../" + foreignWorkspace + "/private.pdf",
+		"encoded": "/uploads/workspaces/" + testWorkspaceID + "/%2e%2e/" + foreignWorkspace + "/private.pdf",
+		"users":   "/uploads/users/" + testUserID + "/../../" + key,
+	}
+	for name, target := range paths {
+		t.Run(name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, target, nil)
+			if name == "encoded" && !strings.Contains(req.URL.Path, "/../") {
+				t.Fatalf("encoded target did not decode to dot-dot: %q", req.URL.Path)
+			}
+			req.Header.Set("X-User-ID", testUserID)
+			rec := httptest.NewRecorder()
+			testHandler.ServeLocalUpload(rec, req)
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("status = %d, want 404; body=%q", rec.Code, rec.Body.String())
+			}
+			if got := rec.Header().Get("Content-Disposition"); got != "" {
+				t.Fatalf("Content-Disposition = %q, want empty", got)
+			}
+			if strings.Contains(rec.Body.String(), body) || strings.Contains(rec.Body.String(), "secret-LOI") {
+				t.Fatalf("response leaked foreign upload: %q", rec.Body.String())
+			}
+		})
+	}
+}
+
 func TestLocalUpload_UserPrefixAnyAuthenticated200(t *testing.T) {
 	local := localUploadTestStorage(t)
 	otherUser := dbfx.User(t, "Avatar fixture user", "avatar-user-"+uuid.NewString()+"@example.test")
