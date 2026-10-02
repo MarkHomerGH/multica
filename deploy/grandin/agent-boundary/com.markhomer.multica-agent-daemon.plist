@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0"><dict>
+  <key>Label</key><string>com.markhomer.multica-agent-daemon</string>
+  <key>UserName</key><string>multica-agent</string>
+  <key>GroupName</key><string>multica-agent</string>
+  <key>WorkingDirectory</key><string>/Users/multica-agent</string>
+  <key>ProgramArguments</key><array>
+    <string>/usr/bin/sandbox-exec</string>
+    <string>-f</string><string>/usr/local/multica-agent/multica-agent.sb</string>
+    <string>-D</string><string>HOME=/Users/multica-agent</string>
+    <string>-D</string><string>WORKROOT=/Users/multica-agent/multica_workspaces</string>
+    <string>-D</string><string>TMP=__MULTICA_AGENT_TMP__</string>
+    <string>/usr/local/multica-agent/bin/multica</string>
+    <string>daemon</string><string>start</string>
+    <string>--foreground</string><string>--no-auto-update</string>
+  </array>
+  <key>EnvironmentVariables</key><dict>
+    <key>HOME</key><string>/Users/multica-agent</string>
+    <key>PATH</key><string>/usr/local/multica-agent/bin:/usr/bin:/bin</string>
+    <key>TMPDIR</key><string>__MULTICA_AGENT_TMP__</string>
+    <key>MULTICA_DAEMON_AUTO_UPDATE</key><string>false</string>
+    <key>MULTICA_OPENCODE_PATH</key><string>/usr/local/multica-agent/bin/opencode</string>
+    <key>MULTICA_OPENCODE_MODEL</key><string>ollama/qwen3.6:35b</string>
+    <key>OPENCODE_DISABLE_AUTOUPDATE</key><string>true</string>
+    <key>OPENCODE_DISABLE_SHARE</key><string>true</string>
+  </dict>
+  <key>RunAtLoad</key><true/>
+  <key>KeepAlive</key><false/>
+  <key>StandardOutPath</key><string>/Users/multica-agent/multica-daemon.out.log</string>
+  <key>StandardErrorPath</key><string>/Users/multica-agent/multica-daemon.err.log</string>
+</dict></plist>
