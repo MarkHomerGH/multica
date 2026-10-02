@@ -27,6 +27,26 @@ capture() {
   say "$* > $file"
   if [[ $DRY -eq 0 ]]; then "$@" > "$file" 2>&1; fi
 }
+wait_for_service_gone() {
+  local label=$1 elapsed
+  say "wait for launchctl print system/$label to report service gone (15s timeout)"
+  [[ $DRY -eq 0 ]] || return 0
+  for ((elapsed=0; elapsed<15; elapsed++)); do
+    if ! launchctl print "system/$label" >/dev/null 2>&1; then return 0; fi
+    sleep 1
+  done
+  echo "timed out waiting for system/$label to unload after bootout" >&2
+  return 1
+}
+confirm_service_loaded() {
+  local label=$1
+  say "launchctl print system/$label (confirm loaded)"
+  [[ $DRY -eq 0 ]] || return 0
+  if ! launchctl print "system/$label" >/dev/null 2>&1; then
+    echo "bootstrap returned but system/$label is not loaded" >&2
+    return 1
+  fi
+}
 
 verify_pf_rules() {
   local rules=$1 normalized
@@ -186,12 +206,33 @@ fi
 run install -o root -g wheel -m 0644 "$RECEIPT/pf-boot.plist" "$BOOT_PLIST"
 say 'launchctl bootout system/com.markhomer.pf-multica (not-loaded tolerated)'
 if [[ $DRY -eq 0 ]]; then launchctl bootout system/com.markhomer.pf-multica 2>/dev/null || true; fi
+wait_for_service_gone com.markhomer.pf-multica
 run launchctl bootstrap system "$BOOT_PLIST"
+confirm_service_loaded com.markhomer.pf-multica
 
 # (k) The old service may be stopped already; all other errors are fatal.
 say 'launchctl bootout system/com.markhomer.multica-agent-daemon (not-loaded tolerated)'
 if [[ $DRY -eq 0 ]]; then launchctl bootout system/com.markhomer.multica-agent-daemon 2>/dev/null || true; fi
+wait_for_service_gone com.markhomer.multica-agent-daemon
+# Record log positions before this daemon starts. The proof checks only new
+# bytes and reports inconclusive if rotation obscures a baseline.
+say "record $RECEIPT/daemon-log-baseline.txt and daemon-stderr-baseline.txt"
+if [[ $DRY -eq 0 ]]; then
+  DAEMON_LOG=/Users/multica-agent/.multica/daemon.log
+  if [[ -f $DAEMON_LOG ]]; then
+    stat -f '%i %z' "$DAEMON_LOG" > "$RECEIPT/daemon-log-baseline.txt"
+  else
+    echo missing > "$RECEIPT/daemon-log-baseline.txt"
+  fi
+  DAEMON_STDERR=/Users/multica-agent/multica-daemon.err.log
+  if [[ -f $DAEMON_STDERR ]]; then
+    stat -f '%i %z' "$DAEMON_STDERR" > "$RECEIPT/daemon-stderr-baseline.txt"
+  else
+    echo missing > "$RECEIPT/daemon-stderr-baseline.txt"
+  fi
+fi
 run launchctl bootstrap system "$DAEMON_PLIST"
+confirm_service_loaded com.markhomer.multica-agent-daemon
 
 # (l) Keep receipts for rollback and operator review.
 run touch "$RECEIPT/install-complete"

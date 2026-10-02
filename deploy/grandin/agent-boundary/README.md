@@ -12,9 +12,9 @@ destinations to the local Multica backend (127.0.0.1:8080) and Ollama
 | `multica-agent.sb` | Default-deny Seatbelt profile: system startup reads, named agent state and workspaces writes, destination-scoped outbound sockets, and final credential denies. |
 | `pf.anchor` | Per-user TCP allowlist and TCP/UDP block. |
 | `com.markhomer.multica-agent-daemon.plist` | The existing daemon arguments and environment, with `sandbox-exec` in front. |
-| `install.sh` | Records a timestamped receipt, installs both layers and the pf boot job, then restarts the daemon. Its dry-run parse-checks pf and exercises the live rule verifier. |
+| `install.sh` | Records a timestamped receipt, installs both layers and the pf boot job, waits for bootouts before bootstrapping, then confirms both jobs loaded. Its dry-run parse-checks pf and exercises the live rule verifier. |
 | `rollback.sh` | Restores the saved daemon plist and removes only this anchor's pf.conf stanza and installed files. |
-| `proof-test.sh` | Prints a PASS/FAIL result for each daemon, pf, filesystem, and network probe. |
+| `proof-test.sh` | Prints a PASS/FAIL or INCONCLUSIVE result for daemon, pf, filesystem, and network probes. |
 
 The named writable home paths come from
 `deploy/grandin/setup-agent-account.sh:53-54` (`.config/opencode`),
@@ -45,9 +45,36 @@ provides the account's actual temp directory. `install.sh` substitutes that
 path, resolved through `/var`'s symlink, in both the Seatbelt `-D TMP=`
 argument and `TMPDIR` environment variable.
 The profile itself uses only `HOME`, `WORKROOT`, and `TMP` parameters for
-agent-specific paths. The daemon's PATH selects `/usr/bin/git` from Command
+agent-specific paths. The daemon starts in `multica_workspaces`; the proof
+runs agent probes there, with an additional OpenCode version probe from HOME.
+The proof reads `TMPDIR` from the installed daemon plist to use the same
+temporary directory. The daemon's PATH selects `/usr/bin/git` from Command
 Line Tools. The pf boot job runs `/sbin/pfctl -E -f /etc/pf.conf` at load, so
 pf is enabled after a reboot.
+
+## Live-sitting finding and fix
+
+On the Studio, all boundary denials passed and pf rules were verified, but the
+daemon exited with `failed to register runtimes for any of the 1 workspace(s)`.
+Seatbelt logged OpenCode and `path_helper` being denied reads under the agent
+HOME, plus a `vfs.disk-space` system-info denial. It also denied listing
+`/Users`, as intended. The daemon's OpenCode version probe ran from HOME;
+OpenCode exited with `An unknown error occurred (Unexpected)` when it could
+not read that directory. After install, `launchctl print` could not find the
+daemon job; a manual bootstrap succeeded, consistent with a bootout/bootstrap
+race. The proof script's inherited cwd and temp environment made two checks
+unrepresentative of the daemon.
+
+The profile now permits read access to the literal HOME directory entry and
+read-only system information. It grants no read access to `/Users` contents;
+the final credential-path denies still apply beneath HOME. The plist starts
+the daemon in `multica_workspaces`. The installer waits up to 15 seconds for
+each booted-out job to disappear, then confirms each bootstrap with
+`launchctl print`. The proof runs agent commands with `sudo -H`, the installed
+TMPDIR, and an explicit cwd; it checks OpenCode from both the workspace and
+HOME, confirms the daemon process exists, and scans the structured log and
+launchd stderr from positions recorded before this install. If those log
+positions cannot be checked, the result is INCONCLUSIVE.
 
 pf resolves `user multica-agent` to the account's numeric UID when it loads
 the anchor. The installer and proof test use `id -u multica-agent` to verify
@@ -119,3 +146,5 @@ when invoking `/usr/bin/sandbox-exec`, so runtime Seatbelt probes could not
 run here. The profile parsed far enough to reach `sandbox_apply`; the external
 check must execute its success and denial probes outside this worker sandbox.
 No privileged install, pf, launchctl, or account-changing command was run.
+The live-sitting results above came from the Studio run before these fixes;
+this worktree cannot establish that the revised daemon registers a runtime.
