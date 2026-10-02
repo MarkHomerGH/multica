@@ -389,6 +389,13 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 	}
 
 	workspaceID := h.resolveWorkspaceID(r)
+	// The shared resolver can fall back to an ID after an unknown slug.
+	if slug := r.Header.Get("X-Workspace-Slug"); slug != "" && r.Header.Get("X-Actor-Source") != "task_token" {
+		if _, err := h.Queries.GetWorkspaceBySlug(r.Context(), slug); err != nil {
+			writeError(w, http.StatusNotFound, "workspace not found")
+			return
+		}
+	}
 
 	r.Body = http.MaxBytesReader(w, r.Body, maxUploadSize)
 
@@ -397,6 +404,14 @@ func (h *Handler) UploadFile(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	defer r.MultipartForm.RemoveAll()
+	if workspaceID == "" {
+		for _, field := range []string{"issue_id", "comment_id", "chat_session_id", "task_id"} {
+			if _, present := r.MultipartForm.Value[field]; present {
+				writeError(w, http.StatusBadRequest, "workspace context required for attachments")
+				return
+			}
+		}
+	}
 
 	file, header, err := r.FormFile("file")
 	if err != nil {
@@ -967,9 +982,15 @@ func (h *Handler) ServeLocalUpload(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	key := strings.TrimPrefix(r.URL.Path, "/uploads/")
-	if key == "" || strings.HasSuffix(key, "/") {
+	if key == "" || strings.HasSuffix(key, "/") || path.Clean(key) != key {
 		http.NotFound(w, r)
 		return
+	}
+	for _, segment := range strings.Split(key, "/") {
+		if segment == ".." {
+			http.NotFound(w, r)
+			return
+		}
 	}
 	switch {
 	case strings.HasPrefix(key, "workspaces/"):

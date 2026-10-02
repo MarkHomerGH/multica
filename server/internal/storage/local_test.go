@@ -39,6 +39,32 @@ func TestLocalServeFile_RefusesDirectory(t *testing.T) {
 	}
 }
 
+func TestLocalServeFile_UncleanKeyNoMeta(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("LOCAL_UPLOAD_DIR", dir)
+	store := NewLocalStorageFromEnv()
+	if store == nil {
+		t.Fatal("NewLocalStorageFromEnv returned nil")
+	}
+	key := "workspaces/b/x.txt"
+	if _, err := store.Upload(context.Background(), key, []byte("foreign file bytes"), "text/plain", "secret-LOI.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "workspaces", "b", "x.txt.meta.json")); err != nil {
+		t.Fatalf("sidecar missing: %v", err)
+	}
+	unclean := "workspaces/a/../b/x.txt"
+	req := httptest.NewRequest(http.MethodGet, "/uploads/"+unclean, nil)
+	rec := httptest.NewRecorder()
+	store.ServeFile(rec, req, unclean)
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("status = %d, want 404; body=%q", rec.Code, rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Disposition"); got != "" {
+		t.Fatalf("Content-Disposition = %q, want empty", got)
+	}
+}
+
 func TestLocalStorage_Upload(t *testing.T) {
 	tmpDir := t.TempDir()
 	t.Setenv("LOCAL_UPLOAD_DIR", tmpDir)

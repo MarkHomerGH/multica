@@ -254,6 +254,88 @@ func TestUploadFileForeignWorkspace(t *testing.T) {
 	}
 }
 
+func TestUploadFile_AttachmentWithoutWorkspaceRejected(t *testing.T) {
+	previous := testHandler.Storage
+	t.Cleanup(func() { testHandler.Storage = previous })
+
+	tests := []struct {
+		name        string
+		field       string
+		value       string
+		slug        string
+		workspaceID string
+		wantStatus  int
+		wantError   string
+		wantAvatar  bool
+	}{
+		{name: "issue_id without workspace", field: "issue_id", value: "00000000-0000-0000-0000-000000000001", wantStatus: http.StatusBadRequest, wantError: "workspace context required for attachments"},
+		{name: "empty issue_id without workspace", field: "issue_id", wantStatus: http.StatusBadRequest, wantError: "workspace context required for attachments"},
+		{name: "comment_id without workspace", field: "comment_id", value: "00000000-0000-0000-0000-000000000001", wantStatus: http.StatusBadRequest, wantError: "workspace context required for attachments"},
+		{name: "chat_session_id without workspace", field: "chat_session_id", value: "00000000-0000-0000-0000-000000000001", wantStatus: http.StatusBadRequest, wantError: "workspace context required for attachments"},
+		{name: "task_id without workspace", field: "task_id", value: "00000000-0000-0000-0000-000000000001", wantStatus: http.StatusBadRequest, wantError: "workspace context required for attachments"},
+		{name: "unknown workspace slug", slug: "no-such-workspace-slug", wantStatus: http.StatusNotFound, wantError: "workspace not found"},
+		{name: "unknown slug with ID fallback", slug: "no-such-workspace-slug", workspaceID: testWorkspaceID, wantStatus: http.StatusNotFound, wantError: "workspace not found"},
+		{name: "avatar without workspace", wantStatus: http.StatusOK, wantAvatar: true},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			store := &mockStorage{}
+			testHandler.Storage = store
+			var body bytes.Buffer
+			writer := multipart.NewWriter(&body)
+			part, err := writer.CreateFormFile("file", "avatar.png")
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := part.Write([]byte("upload bytes")); err != nil {
+				t.Fatal(err)
+			}
+			if tc.field != "" {
+				if err := writer.WriteField(tc.field, tc.value); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := writer.Close(); err != nil {
+				t.Fatal(err)
+			}
+			req := httptest.NewRequest(http.MethodPost, "/api/upload-file", &body)
+			req.Header.Set("Content-Type", writer.FormDataContentType())
+			req.Header.Set("X-User-ID", testUserID)
+			if tc.slug != "" {
+				req.Header.Set("X-Workspace-Slug", tc.slug)
+			}
+			if tc.workspaceID != "" {
+				req.Header.Set("X-Workspace-ID", tc.workspaceID)
+			}
+			rec := httptest.NewRecorder()
+			testHandler.UploadFile(rec, req)
+			if rec.Code != tc.wantStatus {
+				t.Fatalf("status = %d, want %d; body=%q", rec.Code, tc.wantStatus, rec.Body.String())
+			}
+			if tc.wantError != "" && !strings.Contains(rec.Body.String(), tc.wantError) {
+				t.Fatalf("body = %q, want error %q", rec.Body.String(), tc.wantError)
+			}
+			if tc.wantAvatar {
+				var response struct {
+					URL string `json:"url"`
+				}
+				if err := json.Unmarshal(rec.Body.Bytes(), &response); err != nil {
+					t.Fatal(err)
+				}
+				prefix := "https://cdn.example.com/users/" + testUserID + "/"
+				if !strings.HasPrefix(response.URL, prefix) {
+					t.Fatalf("url = %q, want prefix %q", response.URL, prefix)
+				}
+				if len(store.files) != 1 {
+					t.Fatalf("stored %d objects, want one avatar", len(store.files))
+				}
+			} else if len(store.files) != 0 {
+				t.Fatalf("rejected upload wrote %d objects: %v", len(store.files), store.files)
+			}
+		})
+	}
+}
+
 // TestUploadFileResolvesWorkspaceViaSlugHeader is a regression test for the
 // v2 workspace URL refactor (#1141). The frontend switched from sending
 // X-Workspace-ID (UUID) to X-Workspace-Slug. For endpoints that sit outside

@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -8,10 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/multica-ai/multica/server/internal/analytics"
 	"github.com/multica-ai/multica/server/internal/auth"
 	"github.com/multica-ai/multica/server/internal/events"
 	"github.com/multica-ai/multica/server/internal/realtime"
+	"github.com/multica-ai/multica/server/internal/storage"
+	dbfx "github.com/multica-ai/multica/server/internal/testutil"
 )
 
 func uploadsTestRouter(t *testing.T) (http.Handler, string, string) {
@@ -68,5 +72,38 @@ func TestUploadsRoute_CookieMemberAllowed(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusOK || rec.Body.String() != body {
 		t.Fatalf("status = %d, body = %q; want 200 and %q", rec.Code, rec.Body.String(), body)
+	}
+}
+
+func TestUploadsRoute_DotDotRejected(t *testing.T) {
+	router, _, _ := uploadsTestRouter(t)
+	fx := dbfx.New(testPool, testWorkspaceID, testUserID)
+	foreignUser := fx.User(t, "Upload fixture user", "upload-user-"+uuid.NewString()+"@example.test")
+	foreignWorkspace := fx.Workspace(t, "Upload fixture workspace", "upload-ws-"+uuid.NewString())
+	fx.Member(t, foreignWorkspace, foreignUser, "owner")
+	local := storage.NewLocalStorageFromEnv()
+	if local == nil {
+		t.Fatal("NewLocalStorageFromEnv returned nil")
+	}
+	key := "workspaces/" + foreignWorkspace + "/private.pdf"
+	const body = "foreign router upload bytes"
+	if _, err := local.Upload(context.Background(), key, []byte(body), "application/pdf", "secret-LOI.pdf"); err != nil {
+		t.Fatal(err)
+	}
+	req := httptest.NewRequest(http.MethodGet, "/uploads/workspaces/"+testWorkspaceID+"/%2e%2e/"+foreignWorkspace+"/private.pdf", nil)
+	if !strings.Contains(req.URL.Path, "/../") {
+		t.Fatalf("encoded target did not decode to dot-dot: %q", req.URL.Path)
+	}
+	req.AddCookie(&http.Cookie{Name: auth.AuthCookieName, Value: testToken})
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code == http.StatusOK {
+		t.Fatalf("status = 200, want rejected request; body=%q", rec.Body.String())
+	}
+	if got := rec.Header().Get("Content-Disposition"); got != "" {
+		t.Fatalf("Content-Disposition = %q, want empty", got)
+	}
+	if strings.Contains(rec.Body.String(), body) {
+		t.Fatalf("response leaked foreign file bytes: %q", rec.Body.String())
 	}
 }
