@@ -173,7 +173,7 @@ fi
 
 # (i) Install the profile and the named, agent-owned state directories.
 run install -o root -g wheel -m 0644 "$HERE/multica-agent.sb" "$PROFILE"
-run install -d -o multica-agent -g multica-agent -m 0700 /Users/multica-agent/multica_workspaces /Users/multica-agent/.config /Users/multica-agent/.config/opencode /Users/multica-agent/.local /Users/multica-agent/.local/share /Users/multica-agent/.local/share/opencode /Users/multica-agent/.local/state /Users/multica-agent/.local/state/opencode /Users/multica-agent/.cache /Users/multica-agent/.multica /Users/multica-agent/.opencode
+run install -d -o multica-agent -g multica-agent -m 0700 /Users/multica-agent/multica_workspaces /Users/multica-agent/.config /Users/multica-agent/.config/opencode /Users/multica-agent/.local /Users/multica-agent/.local/share /Users/multica-agent/.local/share/opencode /Users/multica-agent/.local/state /Users/multica-agent/.local/state/opencode /Users/multica-agent/.cache /Users/multica-agent/.multica /Users/multica-agent/.opencode /Users/multica-agent/.t
 
 # (j) Preserve the old daemon, substitute the account's Darwin temp directory,
 # and install a separate boot job that ENABLES pf (Hazmat's job only loads it).
