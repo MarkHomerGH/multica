@@ -19,6 +19,7 @@
     <key>HOME</key><string>/Users/multica-agent</string>
     <key>PATH</key><string>/usr/local/multica-agent/bin:/usr/bin:/bin</string>
     <key>TMPDIR</key><string>__MULTICA_AGENT_TMP__</string>
+    <key>MULTICA_AGENT_TEMP_BASE</key><string>/Users/multica-agent/.t</string>
     <key>MULTICA_DAEMON_AUTO_UPDATE</key><string>false</string>
     <key>MULTICA_OPENCODE_PATH</key><string>/usr/local/multica-agent/bin/opencode</string>
     <key>MULTICA_OPENCODE_MODEL</key><string>ollama/qwen3.6:35b</string>

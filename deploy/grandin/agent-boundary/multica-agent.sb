@@ -91,6 +91,7 @@
 (allow file-read* file-write* (subpath (string-append (param "HOME") "/.cache")))
 (allow file-read* file-write* (subpath (string-append (param "HOME") "/.multica")))
 (allow file-read* file-write* (subpath (string-append (param "HOME") "/.opencode")))
+(allow file-read* file-write* (subpath (string-append (param "HOME") "/.t")))
 ;; XDG parents must be traversable for their named children.
 (allow file-read-metadata (literal (string-append (param "HOME") "/.config")))
 (allow file-read-metadata (literal (string-append (param "HOME") "/.local")))

@@ -10,6 +10,10 @@ RECEIPT_ROOT=/var/root/multica-boundary-receipts
 AGENT_UID=$(id -u multica-agent)
 HOME_DIR=/Users/multica-agent
 WORKROOT=$HOME_DIR/multica_workspaces
+TASK_TMP_BASE=$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:MULTICA_AGENT_TEMP_BASE' "$DAEMON_PLIST")
+[[ $TASK_TMP_BASE == "$HOME_DIR/.t" ]] || {
+  echo 'installed daemon plist has an invalid task temp base' >&2; exit 1;
+}
 AGENT_TMP=$(/usr/libexec/PlistBuddy -c 'Print :EnvironmentVariables:TMPDIR' "$DAEMON_PLIST")
 AGENT_TMP=$(cd "$AGENT_TMP" && pwd -P)
 [[ $AGENT_TMP =~ ^/private/var/folders/[A-Za-z0-9_./-]+$ ]] || {
@@ -18,6 +22,7 @@ AGENT_TMP=$(cd "$AGENT_TMP" && pwd -P)
 FAILURES=0
 SUFFIX="multica-boundary-proof-$$"
 cleanup() {
+  rmdir "$TASK_TMP_BASE/$SUFFIX" "/tmp/$SUFFIX-task" 2>/dev/null || true
   rm -f "$WORKROOT/$SUFFIX" "$AGENT_TMP/$SUFFIX" \
     "$HOME_DIR/.local/share/opencode/$SUFFIX" "$HOME_DIR/$SUFFIX" \
     "/Users/Shared/$SUFFIX" "/private/tmp/$SUFFIX"
@@ -37,7 +42,7 @@ check() {
 }
 run_as_agent_from() {
   local cwd=$1; shift
-  sudo -H -u multica-agent env HOME="$HOME_DIR" TMPDIR="$AGENT_TMP" \
+  sudo -H -u multica-agent env HOME="$HOME_DIR" TMPDIR="$AGENT_TMP" MULTICA_AGENT_TEMP_BASE="$TASK_TMP_BASE" \
     /bin/sh -c 'cd "$1" || exit 1; shift; exec "$@"' sh "$cwd" "$@"
 }
 as_agent() {
@@ -171,6 +176,9 @@ check 'sandbox+pf permits board via localhost' success in_profile "curl --noprox
 check 'sandbox+pf permits Ollama' success in_profile "curl --noproxy '*' -fsS -m 5 http://127.0.0.1:11434/api/tags"
 check 'sandbox permits workroot write' success in_profile ": > '$WORKROOT/$SUFFIX' && rm -f '$WORKROOT/$SUFFIX'"
 check 'sandbox permits temp write' success in_profile ": > '$AGENT_TMP/$SUFFIX' && rm -f '$AGENT_TMP/$SUFFIX'"
+check 'sandbox permits task temp directory' success in_profile_from "$HOME_DIR" "mkdir -m 0700 '$TASK_TMP_BASE/$SUFFIX' && rmdir '$TASK_TMP_BASE/$SUFFIX'"
+check 'agent can create global tmp directory without sandbox' success as_agent "mkdir -m 0700 '/tmp/$SUFFIX-task' && rmdir '/tmp/$SUFFIX-task'"
+check 'sandbox denies global tmp directory' fail in_profile_from "$HOME_DIR" "mkdir -m 0700 '/tmp/$SUFFIX-task'"
 check 'sandbox permits OpenCode data write' success in_profile ": > '$HOME_DIR/.local/share/opencode/$SUFFIX' && rm -f '$HOME_DIR/.local/share/opencode/$SUFFIX'"
 check 'sandbox denies home-root write' fail in_profile ": > '$HOME_DIR/$SUFFIX'"
 check 'sandbox denies Shared write' fail in_profile ": > '/Users/Shared/$SUFFIX'"

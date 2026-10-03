@@ -22,8 +22,8 @@ The named writable home paths come from
 `hazmat/containment/agent_home_manifest.go:164,175,198` (`.cache`,
 `.config/opencode`, `.opencode`). OpenCode's XDG data and state directories are
 `~/.local/share/opencode` and `~/.local/state/opencode`. The installer creates
-the named directories before restarting the daemon. No home-root write grant
-exists.
+the named directories, including the daemon's task temp base `~/.t`, before
+restarting the daemon. No home-root write grant exists.
 
 ## Operator sequence
 
@@ -45,12 +45,14 @@ provides the account's actual temp directory. `install.sh` substitutes that
 path, resolved through `/var`'s symlink, in both the Seatbelt `-D TMP=`
 argument and `TMPDIR` environment variable.
 The profile itself uses only `HOME`, `WORKROOT`, and `TMP` parameters for
-agent-specific paths. The daemon starts in `multica_workspaces`; the proof
-runs agent probes there, with an additional OpenCode version probe from HOME.
+agent-specific paths. The daemon starts in HOME; the proof runs most agent
+probes from `multica_workspaces`, with OpenCode and task temp directory probes
+from HOME.
 The proof reads `TMPDIR` from the installed daemon plist to use the same
-temporary directory. The daemon's PATH selects `/usr/bin/git` from Command
-Line Tools. The pf boot job runs `/sbin/pfctl -E -f /etc/pf.conf` at load, so
-pf is enabled after a reboot.
+temporary directory. It also reads `MULTICA_AGENT_TEMP_BASE` and checks that
+the installed plist sets it to `/Users/multica-agent/.t`. The daemon's PATH
+selects `/usr/bin/git` from Command Line Tools. The pf boot job runs
+`/sbin/pfctl -E -f /etc/pf.conf` at load, so pf is enabled after a reboot.
 
 ## Live-sitting finding and fix
 
@@ -67,9 +69,9 @@ unrepresentative of the daemon.
 
 The profile now permits read access to the literal HOME directory entry and
 read-only system information. It grants no read access to `/Users` contents;
-the final credential-path denies still apply beneath HOME. The plist starts
-the daemon in `multica_workspaces`. The installer waits up to 15 seconds for
-each booted-out job to disappear, then confirms each bootstrap with
+the final credential-path denies still apply beneath HOME. The installer
+waits up to 15 seconds for each booted-out job to disappear, then confirms
+each bootstrap with
 `launchctl print`. The proof runs agent commands with `sudo -H`, the installed
 TMPDIR, and an explicit cwd; it checks OpenCode from both the workspace and
 HOME, confirms the daemon process exists, and scans the structured log and
@@ -139,15 +141,7 @@ exiting.
   tailnet listener at `100.108.29.78:8760`; the database probe uses
   `127.0.0.1:54322`. DNS denial is evidence for Seatbelt only, never pf.
 
-## Deviations
-
-The worker sandbox rejected `sandbox_apply` with `Operation not permitted`
-when invoking `/usr/bin/sandbox-exec`, so runtime Seatbelt probes could not
-run here. The profile parsed far enough to reach `sandbox_apply`; the external
-check must execute its success and denial probes outside this worker sandbox.
-No privileged install, pf, launchctl, or account-changing command was run.
-The live-sitting results above came from the Studio run before these fixes;
-this worktree cannot establish that the revised daemon registers a runtime.
+## Further live-sitting findings
 
 ### Live sitting 2 (2026-10-02): working directory back to HOME
 
@@ -156,3 +150,28 @@ daemon-managed task`: Multica walks up from the working directory looking for
 `.multica/daemon_task_context.json` (`server/cmd/multica/cmd_agent.go` `daemonTaskContextMarkerPath`), and a
 task marker lives under the workspaces root. The daemon starts in HOME again; the profile's
 `(allow file-read* (literal (param "HOME")))` is what lets OpenCode's runtime check run from there.
+
+### Task temp directory failure (2026-10-03)
+
+On the Studio, the sandboxed daemon was healthy and online and picked up a
+synthetic card, but the task failed while preparing its temp directory:
+`mkdir /tmp/multica-task-954279472: operation not permitted`. The daemon's
+per-task temp path defaults to `/tmp` and does not follow `TMPDIR`. The plist
+now sets the supported `MULTICA_AGENT_TEMP_BASE` override to the existing,
+agent-owned `/Users/multica-agent/.t` directory. The installer creates that
+directory with mode `0700`, and the profile grants read and write access only
+to that named HOME subpath. Its short name leaves room for child tools' AF_UNIX
+socket paths under macOS's 104-byte `sun_path` limit. `/tmp` and `/private/tmp`
+remain outside the writable paths. The proof creates and removes a directory
+under `.t` as the agent inside the profile from HOME, and confirms a directory
+under `/tmp` succeeds without the profile but fails inside it.
+
+## Deviations
+
+The worker sandbox rejects `sandbox_apply` with `Operation not permitted`
+when invoking `/usr/bin/sandbox-exec`, so the revised profile's runtime
+success and denial probes cannot run here. The profile parsed far enough to
+reach `sandbox_apply`. The Studio must run `proof-test.sh` after installation
+to establish that tasks can create directories under `.t` while `/tmp` remains
+denied. Only the installer dry-run was run here; it changed no machine state.
+No privileged install, pf load, launchctl, or account-changing command was run.
