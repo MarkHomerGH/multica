@@ -55,6 +55,7 @@ services:
       MULTICA_WECOM_SECRET_KEY: ""
       MULTICA_TELEGRAM_SECRET_KEY: ""
       MULTICA_VCS_INTEGRATION_ENABLED: "false"
+      # This key is also the Qoder Cloud Agents off switch; keep it empty even if Git-provider integration is wanted, or card text can be sent to api.qoder.com.
       MULTICA_VCS_SECRET_KEY: ""
       MULTICA_PUBLIC_URL: ""
       # A3 Tailnet origin only
@@ -68,7 +69,9 @@ services:
       ALLOW_SIGNUP: "false"
       ALLOWED_EMAILS: ${ALLOWED_EMAILS:?set ALLOWED_EMAILS in .env}
       ALLOWED_EMAIL_DOMAINS: ""
-      DISABLE_WORKSPACE_CREATION: ${DISABLE_WORKSPACE_CREATION:-}
+      DISABLE_WORKSPACE_CREATION: "true"
+      # An empty allowlist lets every signed-in user create workspaces; Mark's email is a second lock behind the disable flag.
+      WORKSPACE_CREATION_ALLOWED_EMAILS: ${ALLOWED_EMAILS:?set ALLOWED_EMAILS in .env}
 
   frontend:
     image: grandin/multica-web:${GRANDIN_PIN}

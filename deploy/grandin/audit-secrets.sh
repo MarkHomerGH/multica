@@ -32,7 +32,13 @@ UNION ALL SELECT 'workspace_mcp_server', count(*) FROM workspace_mcp_server
 UNION ALL SELECT 'agent_task_queue.runtime_mcp_overlay', count(*) FROM agent_task_queue WHERE runtime_mcp_overlay IS NOT NULL
 UNION ALL SELECT 'autopilot_trigger.signing_secret', count(*) FROM autopilot_trigger WHERE coalesce(signing_secret,'')<>''
 UNION ALL SELECT 'autopilot_trigger.webhook_token', count(*) FROM autopilot_trigger WHERE coalesce(webhook_token,'')<>''
-UNION ALL SELECT 'agent.custom_args', count(*) FROM agent WHERE custom_args::text ~* '(key|token|secret|password)';
+UNION ALL SELECT 'agent.custom_args', count(*) FROM agent WHERE custom_args::text ~* '(key|token|secret|password)'
+UNION ALL SELECT 'cloud_agent_connection', count(*) FROM cloud_agent_connection
+UNION ALL SELECT 'channel_typing_reaction', count(*) FROM channel_typing_reaction
+UNION ALL SELECT 'agent_runtime.qoder_cloud', count(*) FROM agent_runtime WHERE provider = 'qoder_cloud'
+UNION ALL SELECT 'workspace_invitation.pending', count(*) FROM workspace_invitation WHERE status = 'pending' AND expires_at > now()
+UNION ALL SELECT 'invariant.workspaces_over_one', GREATEST(count(*) - 1, 0) FROM workspace
+UNION ALL SELECT 'invariant.humans_over_one', GREATEST(count(DISTINCT user_id) - 1, 0) FROM member;
 SQL
 ); then
   echo 'ERROR: secret audit query failed' >&2
@@ -48,6 +54,12 @@ expected=(
   autopilot_trigger.signing_secret
   autopilot_trigger.webhook_token
   agent.custom_args
+  cloud_agent_connection
+  channel_typing_reaction
+  agent_runtime.qoder_cloud
+  workspace_invitation.pending
+  invariant.workspaces_over_one
+  invariant.humans_over_one
 )
 found=()
 lines=0

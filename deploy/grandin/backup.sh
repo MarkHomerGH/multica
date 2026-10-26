@@ -18,7 +18,15 @@ esac
 MC=${MC:-$REPO_ROOT/deploy/grandin/mc}
 PSQL_CMD=${PSQL_CMD:-$MC exec -T postgres psql -U multica -d multica -v ON_ERROR_STOP=1 -Atq}
 PG_DUMP_CMD=${PG_DUMP_CMD:-$MC exec -T postgres pg_dump -U multica -d multica -Fc}
-UPLOADS_SH=${UPLOADS_SH:-$MC exec -T backend sh -c}
+if [[ ${UPLOADS_SH+x} ]]; then
+  printf 'Uploads method: UPLOADS_SH override\n'
+elif "$MC" ps --status running --services | grep -Fxq backend; then
+  UPLOADS_SH="$MC exec -T backend sh -c"
+  printf 'Uploads method: backend exec\n'
+else
+  UPLOADS_SH="$MC run --rm --no-deps -T --entrypoint sh backend -c"
+  printf 'Uploads method: one-off backend run\n'
+fi
 UPLOADS_ROOT=${UPLOADS_ROOT:-/app/data/uploads}
 read -r -a psql_cmd <<< "$PSQL_CMD"
 read -r -a dump_cmd <<< "$PG_DUMP_CMD"
