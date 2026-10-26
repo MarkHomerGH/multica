@@ -1,5 +1,7 @@
 #!/bin/bash
 # Grandin wrapper: docker compose with the three-layer file stack, from the fork root.
-cd "$(dirname "$0")/../.." && exec docker compose \
+# Pinned to the no-mount Colima profile (`colima start -p multica --mount none`), so
+# the server never runs in the default VM, which mounts $HOME read-write.
+cd "$(dirname "$0")/../.." && exec docker --context colima-multica compose \
   -f docker-compose.selfhost.yml -f docker-compose.selfhost.build.yml \
   -f deploy/grandin/docker-compose.grandin.yml "$@"
