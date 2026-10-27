@@ -126,3 +126,11 @@ Workspace-scoped queries filter by `workspace_id`; membership gates access and `
 - Do not add internal compatibility shims, dual writes, fallback paths, or legacy adapters unless requested. This does not relax API response compatibility above.
 - New global pre-workspace routes use a single word or `/{noun}/{verb}`, not hyphenated root names. Update `server/internal/handler/reserved_slugs.json`, run `pnpm generate:reserved-slugs`, and commit `packages/core/paths/reserved-slugs.ts` when changing reserved slugs.
 - Use atomic conventional commits and the repository PR template. For releases, follow [.github/RELEASING.md](.github/RELEASING.md); default to a patch bump unless specified otherwise.
+
+## Waiting-on-Mark Filings (Grandin fork)
+
+When a session here reaches a decision only Mark can make, it files a Desk card at that moment with the **waiting-on-mark-filer** skill (canonical: homer-skills/waiting-on-mark-filer). The mechanical path is `/Users/mark/git-projects/homer-agents/bin/sam escalate` with all five evidence fields, `--kind blocking`, and a stable idempotency key.
+
+- Leave `--lane` at its default `dev`. The Desk and its verifier read only that lane, so a card filed under any other lane (including `multica`) never reaches Mark.
+- Write the card for Mark, not for the next AI. It opens with "What I need from you:" in plain words, then why it matters and how to answer. Codes, file paths and spec sections go in a closing "Background (for the AI)" part.
+- Tell Mark a card is on his Desk only after the verifier has passed it (up to 5 minutes).
