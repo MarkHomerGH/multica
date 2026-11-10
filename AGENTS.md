@@ -134,3 +134,7 @@ When a session here reaches a decision only Mark can make, it files a Desk card 
 - Leave `--lane` at its default `dev`. The Desk and its verifier read only that lane, so a card filed under any other lane (including `multica`) never reaches Mark.
 - Write the card for Mark, not for the next AI. It opens with "What I need from you:" in plain words, then why it matters and how to answer. Codes, file paths and spec sections go in a closing "Background (for the AI)" part.
 - Tell Mark a card is on his Desk only after the verifier has passed it (up to 5 minutes).
+
+## Unattended Work (Grandin fork, house rule 2026-11-09)
+
+Before any overnight or long-running stretch (Ringer runs, judge rounds, long suites), write a resume-state file in the session scratchpad and schedule a ~20-minute heartbeat that reads it and resumes. Tell Mark the limit (the heartbeat dies if the session closes) and delete it when the work is done or waiting on him. Canonical rule: homer-skills `CONVENTIONS.md`, "Unattended work". Added after the homer-agents TASK-53 overnight stall.
