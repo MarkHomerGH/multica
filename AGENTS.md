@@ -138,3 +138,7 @@ When a session here reaches a decision only Mark can make, it files a Desk card 
 ## Unattended Work (Grandin fork, house rule 2026-11-09)
 
 Before any overnight or long-running stretch (Ringer runs, judge rounds, long suites), write a resume-state file in the session scratchpad and schedule a ~20-minute heartbeat that reads it and resumes. Tell Mark the limit (the heartbeat dies if the session closes) and delete it when the work is done or waiting on him. Canonical rule: homer-skills `CONVENTIONS.md`, "Unattended work". Added after the homer-agents TASK-53 overnight stall.
+
+## Model and Effort (Grandin fork, house rule 2026-11-10)
+
+Every job, script or review lane that calls a paid AI model names its model type and its effort level explicitly; never rely on a tool's default, because defaults change in updates. The version may float within the type. Exception: judges, graders and scored panels pin the exact version, so results stay comparable over time. Canonical rule: homer-skills `CONVENTIONS.md`, "Name the model and the effort level in every paid AI job" (Mark's wording, 2026-11-10).
